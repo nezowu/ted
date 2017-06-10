@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
 	int in = open("/dev/tty", O_RDONLY);
 	size_t PAGE;
 	struct stat buff;
-	void *p, *d;
+	void *p, *d, *end_ptr;
 	tcgetattr(in, &saved_attr);
 	set_attr = saved_attr;
 	set_attr.c_lflag &= ~(ICANON|ECHO|ISIG);
