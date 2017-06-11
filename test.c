@@ -16,13 +16,14 @@ size_t size_page_current(off_t);
 
 void *getline_ptr(int, void*);
 int print_line(int, int, void*);
+char *utoa(int, char*);
 
 int main(int argc, char *argv[]) {
 	const char *wellcom = "Введите команду[m - справка]";
 	const char *profi = "\033[1;33m--> \033[0m";
 	int len_profi = 15;
 	int len_wellcom = 49;
-	int fd, first = 0, last = 0, count_line = 1, current_line, first_range = 1, last_range = 1, range = 5;
+	int fd, first = 0, last = 0, count_line = 1, current_line, first_range = 1, last_range = 1, range = 4;
 	char *filename;
 	char suff;
 	char duff[8] = {0}; //duff[8]
@@ -114,7 +115,7 @@ int main(int argc, char *argv[]) {
 		}
 		if(first && strlen(duff) > 0) {
 			last = atoi(duff);
-			if(last > count_line)
+			if(last > count_line + 1)
 				last = count_line;
 			duff[0] = 0;
 		}
@@ -136,21 +137,19 @@ int main(int argc, char *argv[]) {
 			case 'k':
 				if(current_line < 2)
 					current_line++;
-//				write(STDOUT_FILENO, &suff, 1);
 				write(STDOUT_FILENO, "\n", 1);
 				current_line = print_line(current_line - 1, last, p);
+				write(STDOUT_FILENO, profi, len_profi);
 				break;
 			case 'j':
 				if(current_line > count_line - 1)
 					current_line--;
-//				write(STDOUT_FILENO, &suff, 1);
 				write(STDOUT_FILENO, "\n", 1);
 				current_line = print_line(current_line + 1, last, p);
+				write(STDOUT_FILENO, profi, len_profi);
 				break;
 			case 'h':
 				write(STDOUT_FILENO, "\033[1D", 4);
-//				printf("%s", "\033[1D");
-//				fflush(stdout);
 				break;
 			case 'l':
 				write(STDOUT_FILENO, "\033[1C", 4);
@@ -158,22 +157,20 @@ int main(int argc, char *argv[]) {
 			case 'b':
 				write(STDOUT_FILENO, &suff, 1);
 				write(STDOUT_FILENO, "\nУстановлен новый размер блока для вывода клавишей Space\n", 76 + 24);
-				range = first;
+				range = first - 1;
 				break;
 			case '\040': // клавиша Space
 				write(STDOUT_FILENO, "\n", 1);
 				first_range = current_line;
 				last_range = current_line + range;
+				if(last_range > count_line)
+					last_range = count_line;
 				current_line = print_line(first_range, last_range, p);
 				write(STDOUT_FILENO, profi, len_profi);
 				break;
-
 			default:
-//				write(STDOUT_FILENO, "Всякая хрень попадается\n", 45);
 				break;
 		}
-
-//		write(STDOUT_FILENO, "Конец главного цикла...\n", 42);
 		first = 0;
 		last = 0;
 	}
@@ -182,7 +179,6 @@ int main(int argc, char *argv[]) {
 //		tcsetattr(in, TCSANOW, &saved_attr);
 //		exit(EXIT_FAILURE);
 //	}
-
 //	write(STDOUT_FILENO, duff, strlen(duff));
 
 	tcsetattr(in, TCSANOW, &saved_attr);
@@ -190,7 +186,12 @@ int main(int argc, char *argv[]) {
 }
 
 void phelp(void) {
-	printf("%s", "\nh - справка\np - вывод текущей строки\n\
+	printf("%s", "\nm - справка\n\
+p - вывод текущей строки\n\
+j - вывод следующей строки\n\
+k - вывод предыдущей строки\n\
+Space - вывод блока строк.\n\
+Nb - установка размера блока (напр: --> 15b)\n\
 i - вставка текста\nd - удалить текущую строку\n\
 w - сохранение документа\nq - выход с записью.\n\
 x - выход без записи.\n");
@@ -216,28 +217,32 @@ void *getline_ptr(int line, void *p) {
 	return d;
 }
 
-//int print_line(int first, int last, void *d) {
-//	void *run = getline_ptr(first);
-//	void *end = getline_ptr(last);
-//	char *c;
-//	if(last)
-//		write(STDOUT_FILENO, run, (size_t)(end - run));
-//		write(STDOUT_FILENO, "\033[1;33mВведите команду[h - справка]--> \033[0m", 53);
-//	}
-//	return last;
-//}
-
 int print_line(int first, int last, void *p) {
 	char *run = (char*)getline_ptr(first, p);
 	if(first > last)
 		last = first;
 	for(int i = first; i <= last; i++) {
-		printf("%s%d%s ", "\033[1;33m", i, "\033[0m");
-		fflush(stdout);
+		int digit = i;
+		char *utoa_buff = malloc(8);
+		utoa_buff += 7;
+		do {
+			*--utoa_buff = digit % 10 + '0';
+		} while(digit /= 10);
+		write(STDOUT_FILENO, "\033[1;33m", 7);
+		strcat(utoa_buff, "\033[0m ");
+		write(STDOUT_FILENO, utoa_buff, strlen(utoa_buff));
+//		write(STDOUT_FILENO, "\033[0m ", 5);
 		do {
 			write(STDOUT_FILENO, run++, 1);
-		} while((int)run[0] != '\n');
+		} while(run[0] != '\n' && run[0] != '\0');
 		write(STDOUT_FILENO, run++, 1);
 	}
 	return (first > last)? first : last;
+}
+
+char *utoa(int digit, char *buff) {
+	do {
+		*--buff = digit % 10 + '0';
+	} while(digit /= 10);
+	return buff;
 }
