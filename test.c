@@ -18,20 +18,20 @@ void *getline_ptr(int, void*);
 int print_line(int, int, void*);
 
 int main(int argc, char *argv[]) {
-	const char *wellcom = "Введите команду[h - справка]--> ";
-//	const char *profi = "--> ";
-//	int len_profi = 4;
-	int len_wellcom = 53;
-	int fd, first = 0, last = 0, count_str = 1, current_str;
+	const char *wellcom = "Введите команду[m - справка]";
+	const char *profi = "\033[1;33m--> \033[0m";
+	int len_profi = 15;
+	int len_wellcom = 49;
+	int fd, first = 0, last = 0, count_line = 1, current_line, first_range = 1, last_range = 1, range = 5;
 	char *filename;
 	char suff;
-	char duff[256] = {0}; //duff[8]
+	char duff[8] = {0}; //duff[8]
 	struct termios saved_attr;
 	struct termios set_attr;
 	int in = open("/dev/tty", O_RDONLY);
 	size_t PAGE;
 	struct stat buff;
-	void *p, *d, *end_p, *last_line;
+	void *p, *d, *end_p, *last_line_p;
 	tcgetattr(in, &saved_attr);
 	set_attr = saved_attr;
 	set_attr.c_lflag &= ~(ICANON|ECHO|ISIG);
@@ -68,15 +68,16 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 	d = p - 1;
-	for(count_str = 0; (d = memchr(d + 1, '\n', strlen(d+1))) != NULL; count_str++) {
+	for(count_line = 0; (d = memchr(d + 1, '\n', strlen(d+1))) != NULL; count_line++) {
 		if(strlen(d+1) > 0)
-			last_line = d + 1;
+			last_line_p = d + 1;
 		else
 			end_p = d + 1;
 	}
-	current_str = count_str;
+	current_line = 1;
 	tcsetattr(in, TCSAFLUSH, &set_attr);
-	write(STDOUT_FILENO, "Введите команду[h - справка]--> ", 53);
+	write(STDOUT_FILENO, wellcom, len_wellcom);
+	write(STDOUT_FILENO, profi, len_profi);
 
 	while(read(in, &suff, 1) && suff != '\004') { //нужна проверка read
 		if(isdigit(suff) && !first ) {
@@ -89,12 +90,12 @@ int main(int argc, char *argv[]) {
 		if(strlen(duff) > 0 && !first) {
 			first = atoi(duff);
 			duff[0] = 0;
-			if(first > count_str)
-				first = count_str;
+			if(first > count_line)
+				first = count_line;
 		}
 		if(suff == '$' && !first) {
 			write(STDOUT_FILENO, &suff, 1);
-			first = count_str;
+			first = count_line;
 			continue;
 		}
 		if( suff == '-' && first) {
@@ -108,36 +109,71 @@ int main(int argc, char *argv[]) {
 		}
 		if(suff == '$' && first) {
 			write(STDOUT_FILENO, &suff, 1);
-			last = count_str;
+			last = count_line;
 			continue;
 		}
 		if(first && strlen(duff) > 0) {
 			last = atoi(duff);
-			if(last > count_str)
-				last = count_str;
+			if(last > count_line)
+				last = count_line;
 			duff[0] = 0;
 		}
 		switch(suff) {
-			case 'h':
+			case 'm':
 				write(STDOUT_FILENO, &suff, 1);
 				phelp();
-				write(STDOUT_FILENO, "Введите команду[h - справка]--> ", 53);
+				write(STDOUT_FILENO, profi, len_profi);
 				break;
 			case 'p':
 				write(STDOUT_FILENO, &suff, 1);
 				write(STDOUT_FILENO, "\n", 1);
 				if(!first && !last)
-					current_str = print_line(current_str, last, p);
+					current_line = print_line(current_line, last, p);
 				else
-					current_str = print_line(first, last, p);
-				write(STDOUT_FILENO, wellcom, len_wellcom);
+					current_line = print_line(first, last, p);
+				write(STDOUT_FILENO, profi, len_profi);
 				break;
+			case 'k':
+				if(current_line < 2)
+					current_line++;
+//				write(STDOUT_FILENO, &suff, 1);
+				write(STDOUT_FILENO, "\n", 1);
+				current_line = print_line(current_line - 1, last, p);
+				break;
+			case 'j':
+				if(current_line > count_line - 1)
+					current_line--;
+//				write(STDOUT_FILENO, &suff, 1);
+				write(STDOUT_FILENO, "\n", 1);
+				current_line = print_line(current_line + 1, last, p);
+				break;
+			case 'h':
+				write(STDOUT_FILENO, "\033[1D", 4);
+//				printf("%s", "\033[1D");
+//				fflush(stdout);
+				break;
+			case 'l':
+				write(STDOUT_FILENO, "\033[1C", 4);
+				break;
+			case 'b':
+				write(STDOUT_FILENO, &suff, 1);
+				write(STDOUT_FILENO, "\nУстановлен новый размер блока для вывода клавишей Space\n", 76 + 24);
+				range = first;
+				break;
+			case '\040': // клавиша Space
+				write(STDOUT_FILENO, "\n", 1);
+				first_range = current_line;
+				last_range = current_line + range;
+				current_line = print_line(first_range, last_range, p);
+				write(STDOUT_FILENO, profi, len_profi);
+				break;
+
 			default:
-				write(STDOUT_FILENO, "Всякая хрень попадается\n", 45);
+//				write(STDOUT_FILENO, "Всякая хрень попадается\n", 45);
 				break;
 		}
 
-		write(STDOUT_FILENO, "Конец главного цикла...\n", 42);
+//		write(STDOUT_FILENO, "Конец главного цикла...\n", 42);
 		first = 0;
 		last = 0;
 	}
@@ -186,7 +222,7 @@ void *getline_ptr(int line, void *p) {
 //	char *c;
 //	if(last)
 //		write(STDOUT_FILENO, run, (size_t)(end - run));
-//		write(STDOUT_FILENO, "Введите команду[h - справка]--> ", 53);
+//		write(STDOUT_FILENO, "\033[1;33mВведите команду[h - справка]--> \033[0m", 53);
 //	}
 //	return last;
 //}
@@ -196,6 +232,8 @@ int print_line(int first, int last, void *p) {
 	if(first > last)
 		last = first;
 	for(int i = first; i <= last; i++) {
+		printf("%s%d%s ", "\033[1;33m", i, "\033[0m");
+		fflush(stdout);
 		do {
 			write(STDOUT_FILENO, run++, 1);
 		} while((int)run[0] != '\n');
