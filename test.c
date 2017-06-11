@@ -14,16 +14,15 @@
 void phelp(void);
 size_t size_page_current(off_t);
 
-void *getline_ptr(int line, void *p) {
-	void *d = p - 1;
-	for(; line > 1; line--) {
-		d = memchr(d + 1, '\n', strlen(d+1));
-	}
-	return (char*)d + 1;
-}
+void *getline_ptr(int, void*);
+int print_line(int, int, void*);
 
 int main(int argc, char *argv[]) {
-	int fd, first, last, count_str, current_str;
+	const char *wellcom = "Введите команду[h - справка]--> ";
+//	const char *profi = "--> ";
+//	int len_profi = 4;
+	int len_wellcom = 53;
+	int fd, first = 0, last = 0, count_str = 1, current_str;
 	char *filename;
 	char suff;
 	char duff[256] = {0}; //duff[8]
@@ -32,7 +31,7 @@ int main(int argc, char *argv[]) {
 	int in = open("/dev/tty", O_RDONLY);
 	size_t PAGE;
 	struct stat buff;
-	void *p, *d, *end_ptr;
+	void *p, *d, *end_p, *last_line;
 	tcgetattr(in, &saved_attr);
 	set_attr = saved_attr;
 	set_attr.c_lflag &= ~(ICANON|ECHO|ISIG);
@@ -70,42 +69,53 @@ int main(int argc, char *argv[]) {
 	}
 	d = p - 1;
 	for(count_str = 0; (d = memchr(d + 1, '\n', strlen(d+1))) != NULL; count_str++) {
-		printf("%p %p %zu\n", p, d, strlen(d+1));
+		if(strlen(d+1) > 0)
+			last_line = d + 1;
+		else
+			end_p = d + 1;
 	}
-
 	current_str = count_str;
-	printf("%d %d\n", count_str, current_str);
-
 	tcsetattr(in, TCSAFLUSH, &set_attr);
-
 	write(STDOUT_FILENO, "Введите команду[h - справка]--> ", 53);
 
-	while(read(in, &suff, 1) && suff != '\004') {
-		while(isdigit((int)suff)) {
+	while(read(in, &suff, 1) && suff != '\004') { //нужна проверка read
+		if(isdigit(suff) && !first ) {
+			if(suff == '0' && strlen(duff) < 1)
+				continue;
 			write(STDOUT_FILENO, &suff, 1);
 			strncat(duff, &suff, 1);
-			read(in, &suff, 1);
+			continue;
 		}
-		if(strlen(duff) > 0) {
+		if(strlen(duff) > 0 && !first) {
 			first = atoi(duff);
 			duff[0] = 0;
+			if(first > count_str)
+				first = count_str;
 		}
-		if(strlen(duff) > 0 && suff == '-') {
+		if(suff == '$' && !first) {
 			write(STDOUT_FILENO, &suff, 1);
-//			first = atoi(duff);
-//			duff[0] = 0;
-			while(read(in, &suff, 1) && isdigit((int)suff)) {
-				write(STDOUT_FILENO, &suff, 1);
-				strncat(duff, &suff, 1);
-			}
-			if(suff == '$') {
-				write(STDOUT_FILENO, &suff, 1);
-				last = '$'; //вставим функцию
-			}
-			else if(strlen(duff) > 0) {
-				last = atoi(duff);
-				duff[0] = 0;
-			}
+			first = count_str;
+			continue;
+		}
+		if( suff == '-' && first) {
+			write(STDOUT_FILENO, &suff, 1);
+			continue;
+		}
+		if(isdigit((int)suff) && first) {
+			write(STDOUT_FILENO, &suff, 1);
+			strncat(duff, &suff, 1);
+			continue;
+		}
+		if(suff == '$' && first) {
+			write(STDOUT_FILENO, &suff, 1);
+			last = count_str;
+			continue;
+		}
+		if(first && strlen(duff) > 0) {
+			last = atoi(duff);
+			if(last > count_str)
+				last = count_str;
+			duff[0] = 0;
 		}
 		switch(suff) {
 			case 'h':
@@ -115,29 +125,29 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'p':
 				write(STDOUT_FILENO, &suff, 1);
-				printf("%d\n", first);
-				char *ch = getline_ptr(first, p);
-				while(ch[0] != '\n') {
-					write(STDOUT_FILENO, ch, 1);
-					ch = ch + 1;
-				}
+				write(STDOUT_FILENO, "\n", 1);
+				if(!first && !last)
+					current_str = print_line(current_str, last, p);
+				else
+					current_str = print_line(first, last, p);
+				write(STDOUT_FILENO, wellcom, len_wellcom);
 				break;
 			default:
-				if(isdigit((int)suff)) {
-					write(STDOUT_FILENO, &suff, 1);
-					strncat(duff, &suff, 1);
-				}
+				write(STDOUT_FILENO, "Всякая хрень попадается\n", 45);
 				break;
 		}
+
+		write(STDOUT_FILENO, "Конец главного цикла...\n", 42);
+		first = 0;
+		last = 0;
 	}
-	if(errno) {
-		perror("read");
-		tcsetattr(in, TCSANOW, &saved_attr);
-		exit(EXIT_FAILURE);
-	}
+//	if(errno) {
+//		perror("read");
+//		tcsetattr(in, TCSANOW, &saved_attr);
+//		exit(EXIT_FAILURE);
+//	}
 
 //	write(STDOUT_FILENO, duff, strlen(duff));
-	printf("%d %d\n", first, last);
 
 	tcsetattr(in, TCSANOW, &saved_attr);
 	exit(EXIT_SUCCESS);
@@ -159,4 +169,37 @@ size_t size_page_current(off_t st_size) {
         else if((st_size / size) > 0 && (st_size % size) > 0)
                 return size * (st_size / size) + size;
         return sysconf(_SC_PAGESIZE);
+}
+
+void *getline_ptr(int line, void *p) {
+	void *d = p;
+	for(; line > 1; line--) {
+		d = memchr(d + 1, '\n', strlen(d+1));
+		d++;
+	}
+	return d;
+}
+
+//int print_line(int first, int last, void *d) {
+//	void *run = getline_ptr(first);
+//	void *end = getline_ptr(last);
+//	char *c;
+//	if(last)
+//		write(STDOUT_FILENO, run, (size_t)(end - run));
+//		write(STDOUT_FILENO, "Введите команду[h - справка]--> ", 53);
+//	}
+//	return last;
+//}
+
+int print_line(int first, int last, void *p) {
+	char *run = (char*)getline_ptr(first, p);
+	if(first > last)
+		last = first;
+	for(int i = first; i <= last; i++) {
+		do {
+			write(STDOUT_FILENO, run++, 1);
+		} while((int)run[0] != '\n');
+		write(STDOUT_FILENO, run++, 1);
+	}
+	return (first > last)? first : last;
 }
