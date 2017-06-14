@@ -10,6 +10,7 @@
 #include <ctype.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <sys/ioctl.h>
 
 void phelp(void);
 size_t size_page_current(off_t);
@@ -22,12 +23,13 @@ int main(int argc, char *argv[]) {
 	const char *profi = "\033[0;33m--> \033[0m";
 	int len_profi = 15;
 	int len_wellcom = 49;
-	int fd, first = 0, last = 0, count_line = 1, current_line, first_range = 1, last_range = 1, range = 4;
+	int fd, first = 0, last = 0, count_line = 1, current_line, first_range = 1, last_range = 1, range = 5;
 	char *filename;
 	char suff;
 	char duff[8] = {0};
 	struct termios saved_attr;
 	struct termios set_attr;
+	struct winsize w;
 	int in = open("/dev/tty", O_RDONLY);
 	size_t PAGE;
 	struct stat buff;
@@ -76,16 +78,15 @@ int main(int argc, char *argv[]) {
 	}
 	current_line = 1;
 	tcsetattr(in, TCSAFLUSH, &set_attr);
-	write(STDOUT_FILENO, "\033[0;0H\033[2J", 10);
+//	write(STDOUT_FILENO, "\033[0;0H\033[2J", 10); //очистим экран
+//	write(STDOUT_FILENO, "\033[s", 3); //запомним позицию курсора
 	write(STDOUT_FILENO, wellcom, len_wellcom);
 	write(STDOUT_FILENO, profi, len_profi);
-	write(STDOUT_FILENO, "\033[s", 3); //запомним позицию курсора
 	write(STDOUT_FILENO, "\n", 1);
 	print_line(1, 1, p);
 	write(STDOUT_FILENO, profi, len_profi);
 
 	while(read(in, &suff, 1) && suff != '\004') { //нужна проверка read
-//	write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
 		if(isdigit(suff) && !first ) {
 			if(suff == '0' && strlen(duff) < 1)
 				continue;
@@ -126,14 +127,18 @@ int main(int argc, char *argv[]) {
 		}
 		switch(suff) {
 			case 'm': //справка
-				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
+//				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
+//				write(STDOUT_FILENO, wellcom, len_wellcom);
+//				write(STDOUT_FILENO, profi, len_profi);
 				write(STDOUT_FILENO, &suff, 1);
 				write(STDOUT_FILENO, "\n", 1);
 				phelp();
 				write(STDOUT_FILENO, profi, len_profi);
 				break;
 			case 'p': //print
-				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
+//				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
+//				write(STDOUT_FILENO, wellcom, len_wellcom);
+//				write(STDOUT_FILENO, profi, len_profi);
 				write(STDOUT_FILENO, &suff, 1);
 				write(STDOUT_FILENO, "\n", 1);
 				if(!first && !last)
@@ -143,7 +148,9 @@ int main(int argc, char *argv[]) {
 				write(STDOUT_FILENO, profi, len_profi);
 				break;
 			case 'k': //вверх на одну строку
-				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
+//				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
+//				write(STDOUT_FILENO, wellcom, len_wellcom);
+//				write(STDOUT_FILENO, profi, len_profi);
 				write(STDOUT_FILENO, &suff, 1);
 //				write(STDOUT_FILENO, "\n", 1);
 				if(current_line < 2)
@@ -153,7 +160,9 @@ int main(int argc, char *argv[]) {
 				write(STDOUT_FILENO, profi, len_profi);
 				break;
 			case 'j': //вниз на одну строку
-				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
+//				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
+//				write(STDOUT_FILENO, wellcom, len_wellcom);
+//				write(STDOUT_FILENO, profi, len_profi);
 				write(STDOUT_FILENO, &suff, 1);
 				if(current_line > count_line - 1)
 					current_line--;
@@ -167,18 +176,27 @@ int main(int argc, char *argv[]) {
 //			case 'l':
 //				write(STDOUT_FILENO, "\033[1C", 4);
 //				break;
-			case 'b': //установка блока, по умолчанию 5 строк
-				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
+//			case 'b': //установка блока, по умолчанию 5 строк
+//				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
+//				write(STDOUT_FILENO, wellcom, len_wellcom);
+//				write(STDOUT_FILENO, profi, len_profi);
 				write(STDOUT_FILENO, &suff, 1);
 				write(STDOUT_FILENO, "\nУстановлен новый размер блока - Space\n", 41 + 24);
 				range = first - 1;
 				write(STDOUT_FILENO, profi, len_profi);
 				break;
 			case '\040': // клавиша Space
-				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
+//				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
+//				write(STDOUT_FILENO, wellcom, len_wellcom);
+//				write(STDOUT_FILENO, profi, len_profi);
+				if(first > 0)
+					range = first - 1;
 				write(STDOUT_FILENO, "Space", 5);
 				write(STDOUT_FILENO, "\n", 1);
-				first_range = current_line;
+				ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+				if(range > w.ws_row - 3)
+					range = w.ws_row - 3;
+				first_range = (first_range < count_line)? current_line + 1: current_line;
 				last_range = current_line + range;
 				if(last_range > count_line)
 					last_range = count_line;
@@ -186,8 +204,11 @@ int main(int argc, char *argv[]) {
 				write(STDOUT_FILENO, profi, len_profi);
 				break;
 			default:
-				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
+//				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
+//				write(STDOUT_FILENO, wellcom, len_wellcom);
+//				write(STDOUT_FILENO, profi, len_profi);
 				write(STDOUT_FILENO, "?", 1);
+				write(STDOUT_FILENO, "\n", 1);
 				write(STDOUT_FILENO, profi, len_profi);
 				break;
 		}
@@ -233,15 +254,6 @@ size_t size_page_current(off_t st_size) {
                 return size * (st_size / size) + size;
         return sysconf(_SC_PAGESIZE);
 }
-
-//void *getline_p(int line, void *p) {
-//	char *d = p - 1;
-//	for(; line > 1; line--) {
-//		d = (char *)memchr(d + 1, '\n', strlen(d+1));
-//		d++;
-//	}
-//	return d;
-//}
 
 void *getline_p(int line, void *p) {
 	void *d = p;
