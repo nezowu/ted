@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
 	const char *profi = "\033[0;33m--> \033[0m";
 	int len_profi = 15;
 	int len_wellcom = 49;
-	int fd, first = 0, last = 0, count_line = 1, current_line, first_range = 1, last_range = 1, range = 5;
+	int fd, fdb, first = 0, last = 0, count_line = 1, current_line, first_range = 1, last_range = 1, range = 4;
 	char *filename;
 	char suff;
 	char duff[8] = {0};
@@ -44,15 +44,35 @@ int main(int argc, char *argv[]) {
 		filename = ".file~";
 		PAGE = sysconf(_SC_PAGESIZE);
 		fd = open(filename, O_RDWR|O_CREAT|O_TRUNC, 0664);
+		fallocate(fd, 0, 0, 1);
 	}
-	else if(argc == 2) {
+	else if(argc == 2) { //копируем в .argv[1]~
+		char *swapfile = malloc(strlen(argv[1] + 2));
+		memcpy(swapfile, ".", 1);
+		memcpy(swapfile + 1, argv[1], strlen(argv[1]));
+		memcpy(swapfile + 1 + strlen(argv[1]), "~", 1);
+		fdb = open(swapfile, O_RDWR|O_CREAT|O_TRUNC, 0664);
+		if(fdb == -1) {
+			perror("open:36,45");
+			exit(EXIT_FAILURE);
+		}
+
 		filename = argv[1];
+		fd = open(filename, O_RDWR);
 		if(stat(argv[1], &buff) == -1) {
 			perror("stat");
 			exit(EXIT_FAILURE);
 		}
+		if(buff.st_size == 0){
+			fallocate(fd, 0, 0, 1);
+			buff.st_size++;
+		}
+		fallocate(fdb, 0, 0, buff.st_size);
 		PAGE = size_page_current(buff.st_size);
-		fd = open(filename, O_RDWR);
+		char *tmp = malloc(buff.st_size);
+		read(fd, tmp, buff.st_size);
+		write(fdb, tmp, buff.st_size);
+		free(tmp);
 	}
 	else {
 		fprintf(stderr, "%s\n", "Использование: ted <имя_файла.txt> или ted (без параметров)");
@@ -64,7 +84,7 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	p = mmap(0, PAGE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+	p = mmap(0, PAGE, PROT_READ|PROT_WRITE, MAP_SHARED, fdb, 0);
 	if(p == MAP_FAILED) {
 		perror("mmap");
 		exit(EXIT_FAILURE);
@@ -127,18 +147,12 @@ int main(int argc, char *argv[]) {
 		}
 		switch(suff) {
 			case 'm': //справка
-//				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
-//				write(STDOUT_FILENO, wellcom, len_wellcom);
-//				write(STDOUT_FILENO, profi, len_profi);
 				write(STDOUT_FILENO, &suff, 1);
 				write(STDOUT_FILENO, "\n", 1);
 				phelp();
 				write(STDOUT_FILENO, profi, len_profi);
 				break;
 			case 'p': //print
-//				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
-//				write(STDOUT_FILENO, wellcom, len_wellcom);
-//				write(STDOUT_FILENO, profi, len_profi);
 				write(STDOUT_FILENO, &suff, 1);
 				write(STDOUT_FILENO, "\n", 1);
 				if(!first && !last)
@@ -148,21 +162,14 @@ int main(int argc, char *argv[]) {
 				write(STDOUT_FILENO, profi, len_profi);
 				break;
 			case 'k': //вверх на одну строку
-//				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
-//				write(STDOUT_FILENO, wellcom, len_wellcom);
-//				write(STDOUT_FILENO, profi, len_profi);
 				write(STDOUT_FILENO, &suff, 1);
-//				write(STDOUT_FILENO, "\n", 1);
+				write(STDOUT_FILENO, "\n", 1);
 				if(current_line < 2)
 					current_line++;
-				write(STDOUT_FILENO, "\n", 1);
 				current_line = print_line(current_line - 1, last, p);
 				write(STDOUT_FILENO, profi, len_profi);
 				break;
 			case 'j': //вниз на одну строку
-//				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
-//				write(STDOUT_FILENO, wellcom, len_wellcom);
-//				write(STDOUT_FILENO, profi, len_profi);
 				write(STDOUT_FILENO, &suff, 1);
 				if(current_line > count_line - 1)
 					current_line--;
@@ -176,19 +183,37 @@ int main(int argc, char *argv[]) {
 //			case 'l':
 //				write(STDOUT_FILENO, "\033[1C", 4);
 //				break;
-//			case 'b': //установка блока, по умолчанию 5 строк
-//				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
-//				write(STDOUT_FILENO, wellcom, len_wellcom);
-//				write(STDOUT_FILENO, profi, len_profi);
+			case 'i':
 				write(STDOUT_FILENO, &suff, 1);
-				write(STDOUT_FILENO, "\nУстановлен новый размер блока - Space\n", 41 + 24);
-				range = first - 1;
+				write(STDOUT_FILENO, " (вставка)", 9);
+				write(STDOUT_FILENO, "\n", 1);
+				char *ins = getline_p(current_line, p);
+				char *membuff = malloc(_SC_PAGESIZE);
+				memcpy(membuff, "\n", 1);
+				memcpy(membuff + 1, ins, strlen(ins));
+				while(read(in, &suff, 1) && suff != '\004') {
+					if(!isprint((int)suff) && !isspace((int)suff))
+						continue;
+					write(STDOUT_FILENO, &suff, 1);
+					fallocate(fdb, 0, 0, ++buff.st_size);
+					memcpy(ins++, &suff, 1);
+				}
+				fallocate(fdb, 0, 0, ++buff.st_size);
+				memcpy(ins, membuff, strlen(membuff));
+
+				write(STDOUT_FILENO, "\n", 1);
 				write(STDOUT_FILENO, profi, len_profi);
+
+				d = p - 1;
+				for(count_line = 0; (d = memchr(d + 1, '\n', strlen(d+1))) != NULL; count_line++) {
+					if(strlen(d+1) > 0)
+						last_line_p = d + 1;
+					else
+						end_p = d + 1;
+				}
+
 				break;
 			case '\040': // клавиша Space
-//				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
-//				write(STDOUT_FILENO, wellcom, len_wellcom);
-//				write(STDOUT_FILENO, profi, len_profi);
 				if(first > 0)
 					range = first - 1;
 				write(STDOUT_FILENO, "Space", 5);
@@ -196,7 +221,10 @@ int main(int argc, char *argv[]) {
 				ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
 				if(range > w.ws_row - 3)
 					range = w.ws_row - 3;
-				first_range = (first_range < count_line)? current_line + 1: current_line;
+				if(current_line < count_line)
+					current_line++;
+//				first_range = (first_range < count_line)? current_line + 1: current_line;
+				first_range = current_line;
 				last_range = current_line + range;
 				if(last_range > count_line)
 					last_range = count_line;
@@ -229,18 +257,18 @@ int main(int argc, char *argv[]) {
 
 void phelp(void) {
 	printf("%s\n", "p - вывод текущей строки\n\
-1-$p - вывод с 1 по последнюю строку\n\
+1-$p - вывод с 1 по последнюю строку. \
 4-8p - вывод с 4 по 8 строку\n\
 j - вывод следующей строки\n\
 k - вывод предыдущей строки\n\
 Space - вывод блока строк, по умолчанию 5\n\
-(N)b - установка размера блока (напр: --> 25b)\n\
+nSpace - установка размера блока (напр: --> 25Space)\n\
 a - добавление в конец файла.\n\
 i - вставка текста\nd - удалить текущую строку\n\
+Ctrl+d - закончить ввод текста.\n\
 c - замена строки.\n\
 w [filename] - сохранение документа\nq - выход с записью.\n\
-q - выход с сохранением\n\
-z - выход без сохранения.\n\
+q - выход с сохранением\nz - выход без сохранения.\n\
 m - справка");
 }
 size_t size_page_current(off_t st_size) { 
