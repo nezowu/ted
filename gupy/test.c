@@ -95,15 +95,15 @@ int main(int argc, char *argv[]) {
 			last_line_p = d + 1;
 		else
 			end_p = d + 1;
-	} //переписать, еще и в case 'i'
-	current_line = 1;
+	}
+//	current_line = 1;
 	tcsetattr(in, TCSAFLUSH, &set_attr);
 //	write(STDOUT_FILENO, "\033[0;0H\033[2J", 10); //очистим экран
 //	write(STDOUT_FILENO, "\033[s", 3); //запомним позицию курсора
 	write(STDOUT_FILENO, wellcom, len_wellcom);
 	write(STDOUT_FILENO, profi, len_profi);
 	write(STDOUT_FILENO, "\n", 1);
-	print_line(1, 1, p);
+	current_line = print_line(1, 1, p);
 	write(STDOUT_FILENO, profi, len_profi);
 
 	while(read(in, &suff, 1) && suff != '\004') { //нужна проверка read
@@ -183,63 +183,36 @@ int main(int argc, char *argv[]) {
 //			case 'l':
 //				write(STDOUT_FILENO, "\033[1C", 4);
 //				break;
-			case 'a':
-				write(STDOUT_FILENO, &suff, 1);
-				write(STDOUT_FILENO, " (добавить в конец)", 33);
-				write(STDOUT_FILENO, "\n", 1);
-				while(read(in, &suff, 1) && suff != '\004') {
-					if(!isprint((int)suff) && !isspace((int)suff))
-						continue;
-					write(STDOUT_FILENO, &suff, 1);
-					fallocate(fdb, 0, 0, ++buff.st_size); // проверять размер файла с размером меппинга и если надо увеличивать
-					memcpy(end_p, &suff, 1);
-					end_p++;
-
-				}
-				memcpy(end_p, "\n", 1);
-				write(STDOUT_FILENO, "\n", 1);
-				write(STDOUT_FILENO, profi, len_profi);
-
-				d = p - 1;
-				for(count_line = 0; (d = memchr(d + 1, '\n', strlen(d + 1))) != NULL; count_line++) {
-					if(strlen(d) > 0)
-						last_line_p = d + 1;
-					else
-						end_p = d + 1;
-				}
-
-				current_line = count_line;
-				break;
-			case 'i':
-				write(STDOUT_FILENO, &suff, 1);
-				write(STDOUT_FILENO, " (вставка)", 17);
-				write(STDOUT_FILENO, "\n", 1);
-				char *ins = getline_p(current_line, p);
-				char *membuff = malloc(_SC_PAGESIZE);
-				memcpy(membuff, "\n", 1);
-				memcpy(membuff + 1, ins, strlen(ins));
-				while(read(in, &suff, 1) && suff != '\004') {
-					if(!isprint((int)suff) && !isspace((int)suff))
-						continue;
-					write(STDOUT_FILENO, &suff, 1);
-					fallocate(fdb, 0, 0, ++buff.st_size); //buff.st_size < PAGE
-					memcpy(ins++, &suff, 1);
-				}
-				fallocate(fdb, 0, 0, ++buff.st_size); //buff.st_size < PAGE
-				memcpy(ins, membuff, strlen(membuff));
-
-				write(STDOUT_FILENO, "\n", 1);
-				write(STDOUT_FILENO, profi, len_profi);
-
-				d = p - 1;
-				for(count_line = 0; (d = memchr(d + 1, '\n', strlen(d+1))) != NULL; count_line++) {
-					if(strlen(d+1) > 0)
-						last_line_p = d + 1;
-					else
-						end_p = d + 1;
-				}
-				free(membuff);
-				break;
+//			case 'i':
+//				write(STDOUT_FILENO, &suff, 1);
+//				write(STDOUT_FILENO, " (вставка)", 9);
+//				write(STDOUT_FILENO, "\n", 1);
+//				char *ins = getline_p(current_line, p);
+//				char *membuff = malloc(_SC_PAGESIZE);
+//				memcpy(membuff, "\n", 1);
+//				memcpy(membuff + 1, ins, strlen(ins));
+//				while(read(in, &suff, 1) && suff != '\004') {
+//					if(!isprint((int)suff) && !isspace((int)suff))
+//						continue;
+//					write(STDOUT_FILENO, &suff, 1);
+//					fallocate(fdb, 0, 0, ++buff.st_size);
+//					memcpy(ins++, &suff, 1);
+//				}
+//				fallocate(fdb, 0, 0, ++buff.st_size);
+//				memcpy(ins, membuff, strlen(membuff));
+//
+//				write(STDOUT_FILENO, "\n", 1);
+//				write(STDOUT_FILENO, profi, len_profi);
+//
+//				d = p - 1;
+//				for(count_line = 0; (d = memchr(d + 1, '\n', strlen(d+1))) != NULL; count_line++) {
+//					if(strlen(d+1) > 0)
+//						last_line_p = d + 1;
+//					else
+//						end_p = d + 1;
+//				}
+//
+//				break;
 			case '\040': // клавиша Space
 				if(first > 0)
 					range = first - 1;
@@ -319,15 +292,15 @@ void *getline_p(int line, void *p) {
 }
 
 int print_line(int first, int last, void *p) {
-	char *buff = calloc(1, 8);
-	char *d;
+	char *buf = calloc(1, 8);
+	char *number;
 	char *run = getline_p(first, p);
 	if(first > last)
 		last = first;
 	for(int i = first; i <= last; i++) {
 		write(STDOUT_FILENO, "\033[1;33m", 7);
-		d = untoa(i, buff);
-		write(STDOUT_FILENO, d, strlen(d));
+		number = untoa(i, buf);
+		write(STDOUT_FILENO, number, strlen(number));
 		write(STDOUT_FILENO, "\033[0m ", 5);
 		do {
 			if(run[0] == '\n')
@@ -336,14 +309,14 @@ int print_line(int first, int last, void *p) {
 		} while(run[0] != '\n' && run[0] != '\0');
 		write(STDOUT_FILENO, run++, 1);
 	}
-	free(buff);
+	free(buf);
 	return (first > last)? first : last;
 }
 
-char *untoa(int digit, char *buff) {
-	buff += 7;
+char *untoa(int digit, char *guff) {
+	guff += 7;
 	do {
-		*--buff = digit % 10 + '0';
+		*--guff = digit % 10 + '0';
 	} while(digit /= 10);
-	return buff;
+	return guff;
 }
