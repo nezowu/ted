@@ -24,15 +24,15 @@ int main(int argc, char *argv[]) {
 	int len_profi = 15;
 	int len_wellcom = 49;
 	int fd, fdb, first = 0, last = 0, count_line = 1, current_line, first_range = 1, last_range = 1, range = 4;
-	char *filename;
-	char suff;
+	char *filename, *swapfile;
+	char suff, *ins, *tmp;
 	char duff[8] = {0};
 	struct termios saved_attr;
 	struct termios set_attr;
 	struct winsize w;
 	int in = open("/dev/tty", O_RDONLY);
 	size_t PAGE;
-	struct stat buff;
+	struct stat staff;
 	void *p, *d, *end_p, *last_line_p;
 	tcgetattr(in, &saved_attr);
 	set_attr = saved_attr;
@@ -41,48 +41,42 @@ int main(int argc, char *argv[]) {
 	set_attr.c_cc[VTIME] = 0;
 
 	if(argc == 1) {
-		filename = ".file~";
-		PAGE = sysconf(_SC_PAGESIZE);
-		fd = open(filename, O_RDWR|O_CREAT|O_TRUNC, 0664);
-		fallocate(fd, 0, 0, 1);
-	}
-	else if(argc == 2) { //копируем в .argv[1]~
-		char *swapfile = malloc(strlen(argv[1] + 2));
+		swapfile = ".file~";
+		staff.st_size = 0;
+	} else if(argc == 2) { //копируем в .argv[1]~
+		swapfile = malloc(strlen(argv[1] + 2));
 		memcpy(swapfile, ".", 1);
 		memcpy(swapfile + 1, argv[1], strlen(argv[1]));
 		memcpy(swapfile + 1 + strlen(argv[1]), "~", 1);
-		fdb = open(swapfile, O_RDWR|O_CREAT|O_TRUNC, 0664);
-		if(fdb == -1) {
-			perror("open:36,45");
+		filename = argv[1];
+		fd = open(filename, O_RDWR|O_CREAT, 0664);
+		if(fd == -1) {
+			perror("open:61");
 			exit(EXIT_FAILURE);
 		}
-
-		filename = argv[1];
-		fd = open(filename, O_RDWR);
-		if(stat(argv[1], &buff) == -1) {
+		if(stat(argv[1], &staff) == -1) {
 			perror("stat");
 			exit(EXIT_FAILURE);
 		}
-		if(buff.st_size == 0){
-			fallocate(fd, 0, 0, 1);
-			buff.st_size++;
-		}
-		fallocate(fdb, 0, 0, buff.st_size);
-		PAGE = size_page_current(buff.st_size);
-		char *tmp = malloc(buff.st_size);
-		read(fd, tmp, buff.st_size);
-		write(fdb, tmp, buff.st_size);
+	} else {
+		write(STDERR_FILENO, "Использование: ted [имя_файла.txt]\n", 56);
+		exit(EXIT_FAILURE);
+	}
+	fdb = open(swapfile, O_RDWR|O_CREAT|O_TRUNC, 0664);
+	if(fdb == -1) {
+		perror("open:72");
+		exit(EXIT_FAILURE);
+	}
+	if(!staff.st_size){
+		staff.st_size = 1;
+		write(fdb, "\n", 1);
+	} else {
+		tmp = malloc(staff.st_size);
+		read(fd, tmp, staff.st_size);
+		write(fdb, tmp, staff.st_size);
 		free(tmp);
 	}
-	else {
-		fprintf(stderr, "%s\n", "Использование: ted <имя_файла.txt> или ted (без параметров)");
-		exit(EXIT_FAILURE);
-	}
-
-	if(fd == -1) {
-		perror("open:36,45");
-		exit(EXIT_FAILURE);
-	}
+	PAGE = size_page_current(staff.st_size);
 
 	p = mmap(0, PAGE, PROT_READ|PROT_WRITE, MAP_SHARED, fdb, 0);
 	if(p == MAP_FAILED) {
@@ -95,7 +89,7 @@ int main(int argc, char *argv[]) {
 			last_line_p = d + 1;
 		else
 			end_p = d + 1;
-	} //переписать, еще и в case 'i'
+	}
 	current_line = 1;
 	tcsetattr(in, TCSAFLUSH, &set_attr);
 //	write(STDOUT_FILENO, "\033[0;0H\033[2J", 10); //очистим экран
@@ -177,69 +171,6 @@ int main(int argc, char *argv[]) {
 				current_line = print_line(current_line + 1, last, p);
 				write(STDOUT_FILENO, profi, len_profi);
 				break;
-//			case 'h':
-//				write(STDOUT_FILENO, "\033[1D", 4);
-//				break;
-//			case 'l':
-//				write(STDOUT_FILENO, "\033[1C", 4);
-//				break;
-			case 'a':
-				write(STDOUT_FILENO, &suff, 1);
-				write(STDOUT_FILENO, " (добавить в конец)", 33);
-				write(STDOUT_FILENO, "\n", 1);
-				while(read(in, &suff, 1) && suff != '\004') {
-					if(!isprint((int)suff) && !isspace((int)suff))
-						continue;
-					write(STDOUT_FILENO, &suff, 1);
-					fallocate(fdb, 0, 0, ++buff.st_size); // проверять размер файла с размером меппинга и если надо увеличивать
-					memcpy(end_p, &suff, 1);
-					end_p++;
-
-				}
-				memcpy(end_p, "\n", 1);
-				write(STDOUT_FILENO, "\n", 1);
-				write(STDOUT_FILENO, profi, len_profi);
-
-				d = p - 1;
-				for(count_line = 0; (d = memchr(d + 1, '\n', strlen(d + 1))) != NULL; count_line++) {
-					if(strlen(d) > 0)
-						last_line_p = d + 1;
-					else
-						end_p = d + 1;
-				}
-
-				current_line = count_line;
-				break;
-			case 'i':
-				write(STDOUT_FILENO, &suff, 1);
-				write(STDOUT_FILENO, " (вставка)", 17);
-				write(STDOUT_FILENO, "\n", 1);
-				char *ins = getline_p(current_line, p);
-				char *membuff = malloc(_SC_PAGESIZE);
-				memcpy(membuff, "\n", 1);
-				memcpy(membuff + 1, ins, strlen(ins));
-				while(read(in, &suff, 1) && suff != '\004') {
-					if(!isprint((int)suff) && !isspace((int)suff))
-						continue;
-					write(STDOUT_FILENO, &suff, 1);
-					fallocate(fdb, 0, 0, ++buff.st_size); //buff.st_size < PAGE
-					memcpy(ins++, &suff, 1);
-				}
-				fallocate(fdb, 0, 0, ++buff.st_size); //buff.st_size < PAGE
-				memcpy(ins, membuff, strlen(membuff));
-
-				write(STDOUT_FILENO, "\n", 1);
-				write(STDOUT_FILENO, profi, len_profi);
-
-				d = p - 1;
-				for(count_line = 0; (d = memchr(d + 1, '\n', strlen(d+1))) != NULL; count_line++) {
-					if(strlen(d+1) > 0)
-						last_line_p = d + 1;
-					else
-						end_p = d + 1;
-				}
-				free(membuff);
-				break;
 			case '\040': // клавиша Space
 				if(first > 0)
 					range = first - 1;
@@ -250,13 +181,83 @@ int main(int argc, char *argv[]) {
 					range = w.ws_row - 3;
 				if(current_line < count_line)
 					current_line++;
-//				first_range = (first_range < count_line)? current_line + 1: current_line;
 				first_range = current_line;
 				last_range = current_line + range;
 				if(last_range > count_line)
 					last_range = count_line;
 				current_line = print_line(first_range, last_range, p);
 				write(STDOUT_FILENO, profi, len_profi);
+				break;
+//			case 'h':
+//				write(STDOUT_FILENO, "\033[1D", 4);
+//				break;
+//			case 'l':
+//				write(STDOUT_FILENO, "\033[1C", 4);
+//				break;
+			case 'A':
+				current_line = count_line;
+
+			case 'a':
+				current_line++;
+				write(STDOUT_FILENO, &suff, 1);
+				write(STDOUT_FILENO, " (добавить)", 19);
+				write(STDOUT_FILENO, "\n", 1);
+				if(current_line > count_line) {
+					while(read(in, &suff, 1) && suff != '\004') {
+						if(!isprint((int)suff) && !isspace((int)suff))
+							continue;
+						write(STDOUT_FILENO, &suff, 1);
+						fallocate(fdb, 0, 0, ++staff.st_size); //staff.st_size < PAGE
+						memcpy(end_p++, &suff, 1);
+						memcpy(end_p, "\n", 1);
+					}
+					fallocate(fdb, 0, 0, ++staff.st_size); //staff.st_size < PAGE
+					memcpy(end_p++, "\n", 1);
+					ftruncate(fdb, strlen(p));
+
+					write(STDOUT_FILENO, "\n", 1);
+					write(STDOUT_FILENO, profi, len_profi);
+
+					d = p - 1;
+					for(count_line = 0; (d = memchr(d + 1, '\n', strlen(d+1))) != NULL; count_line++) {
+						if(strlen(d+1) > 0)
+							last_line_p = d + 1;
+						else
+							end_p = d + 1;
+					}
+					break;
+				}
+			case 'i':
+				if(suff == 'i')
+					write(STDOUT_FILENO, &suff, 1);
+				write(STDOUT_FILENO, " (вставить)", 19);
+				write(STDOUT_FILENO, "\n", 1);
+				ins = getline_p(current_line, p);
+				tmp = calloc(1, (size_t)sysconf(_SC_PAGESIZE));
+				memcpy(tmp, ins, strlen(ins));
+				while(read(in, &suff, 1) && suff != '\004') {
+					if(!isprint((int)suff) && !isspace((int)suff))
+						continue;
+					write(STDOUT_FILENO, &suff, 1);
+					fallocate(fdb, 0, 0, ++staff.st_size); //staff.st_size < PAGE
+					memcpy(ins++, &suff, 1);
+					memcpy(ins, "\n", 1);
+				}
+				ins++;
+				fallocate(fdb, 0, 0, ++staff.st_size); //staff.st_size < PAGE
+				memcpy(ins, tmp, strlen(tmp));
+				free(tmp);
+				write(STDOUT_FILENO, "\n", 1);
+				write(STDOUT_FILENO, profi, len_profi);
+
+
+				d = p - 1;
+				for(count_line = 0; (d = memchr(d + 1, '\n', strlen(d+1))) != NULL; count_line++) {
+					if(strlen(d+1) > 0)
+						last_line_p = d + 1;
+					else
+						end_p = d + 1;
+				}
 				break;
 			default:
 //				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
@@ -267,15 +268,10 @@ int main(int argc, char *argv[]) {
 				write(STDOUT_FILENO, profi, len_profi);
 				break;
 		}
+
 		first = 0;
 		last = 0;
 	}
-//	if(errno) {
-//		perror("read");
-//		tcsetattr(in, TCSANOW, &saved_attr);
-//		exit(EXIT_FAILURE);
-//	}
-//	write(STDOUT_FILENO, duff, strlen(duff));
 
 	tcsetattr(in, TCSANOW, &saved_attr);
 	write(STDOUT_FILENO, "\n", 1);
@@ -290,7 +286,7 @@ j - вывод следующей строки\n\
 k - вывод предыдущей строки\n\
 Space - вывод блока строк, по умолчанию 5\n\
 nSpace - установка размера блока (напр: --> 25Space)\n\
-a - добавление в конец файла.\n\
+A - добавление в конец файла с новой строки.\n\
 i - вставка текста\nd - удалить текущую строку\n\
 Ctrl+d - закончить ввод текста.\n\
 c - замена строки.\n\
