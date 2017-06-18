@@ -25,9 +25,10 @@ int main(int argc, char *argv[]) {
 	int len_profi = 15;
 	int len_wellcom = 49;
 	int fd, fdb, first = 0, last = 0, count_line = 1, current_line, first_range = 1, last_range = 1, range = 4;
-	size_t j;
+//	size_t j;
 	char *filename, *swapfile;
-	char suff, *ins, *tmp, *temp;
+	char suff, *ins, *tmp;
+//	char *temp;
 	char duff[8] = {0};
 	struct termios saved_attr;
 	struct termios set_attr;
@@ -203,18 +204,18 @@ int main(int argc, char *argv[]) {
 				if(current_line != count_line) {
 					ins = getline_p(current_line, p);
 					d = getline_p(current_line + 1, p);
-					j = (size_t)d - (size_t)ins;
+//					j = (size_t)d - (size_t)ins;
 					memcpy(tmp, d, strlen(d));
 					memcpy(ins, tmp, strlen(tmp));
-					temp = end_p - j;
-					temp[0] = 0;
-					staff.st_size -= j;
+//					temp = end_p - j;
+//					temp[0] = 0;
+					staff.st_size = staff.st_size - ((size_t)d - (size_t)ins);
 				}
 				ftruncate(fdb, staff.st_size);
 //				fallocate(fdb, 0, 0, strlen(p)); //staff.st_size < PAGE
 //				fstat(fdb, &staff);
 				free(tmp);
-				write(STDOUT_FILENO, "\n", 1);
+//				write(STDOUT_FILENO, "\n", 1);
 				write(STDOUT_FILENO, profi, len_profi);
 
 				d = p - 1;
@@ -258,9 +259,10 @@ int main(int argc, char *argv[]) {
 					break;
 				}
 			case 'i':
-				if(suff == 'i')
+				if(suff == 'i') {
 					write(STDOUT_FILENO, &suff, 1);
-				write(STDOUT_FILENO, " [вставить]\n", 20);
+					write(STDOUT_FILENO, " [вставить]\n", 20);
+				}
 				ins = getline_p(current_line, p);
 				tmp = calloc(1, (size_t)sysconf(_SC_PAGESIZE));
 				memcpy(tmp, ins, strlen(ins));
