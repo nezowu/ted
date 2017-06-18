@@ -25,8 +25,9 @@ int main(int argc, char *argv[]) {
 	int len_profi = 15;
 	int len_wellcom = 49;
 	int fd, fdb, first = 0, last = 0, count_line = 1, current_line, first_range = 1, last_range = 1, range = 4;
+	size_t j;
 	char *filename, *swapfile;
-	char suff, *ins, *tmp;
+	char suff, *ins, *tmp, *temp;
 	char duff[8] = {0};
 	struct termios saved_attr;
 	struct termios set_attr;
@@ -195,6 +196,35 @@ int main(int argc, char *argv[]) {
 //			case 'l':
 //				write(STDOUT_FILENO, "\033[1C", 4);
 //				break;
+			case 'd':
+				write(STDOUT_FILENO, &suff, 1);
+				write(STDOUT_FILENO, " [удалить]\n", 18);
+				tmp = calloc(1, (size_t)sysconf(_SC_PAGESIZE));
+				if(current_line != count_line) {
+					ins = getline_p(current_line, p);
+					d = getline_p(current_line + 1, p);
+					j = (size_t)d - (size_t)ins;
+					memcpy(tmp, d, strlen(d));
+					memcpy(ins, tmp, strlen(tmp));
+					temp = end_p - j;
+					temp[0] = 0;
+					staff.st_size -= j;
+				}
+				ftruncate(fdb, staff.st_size);
+//				fallocate(fdb, 0, 0, strlen(p)); //staff.st_size < PAGE
+//				fstat(fdb, &staff);
+				free(tmp);
+				write(STDOUT_FILENO, "\n", 1);
+				write(STDOUT_FILENO, profi, len_profi);
+
+				d = p - 1;
+				for(count_line = 0; (d = memchr(d + 1, '\n', strlen(d+1))) != NULL; count_line++) {
+					if(strlen(d+1) > 0)
+						last_line_p = d + 1;
+					else
+						end_p = d + 1;
+				}
+				break;
 			case 'A':
 				current_line = count_line;
 
@@ -262,7 +292,7 @@ int main(int argc, char *argv[]) {
 				write(STDOUT_FILENO, &suff, 1);
 				write(STDOUT_FILENO, "\n[выход без сохранения - q, сохранить - w]\n", 70);
 				write(STDOUT_FILENO, profi, len_profi);
-				if(read(in, &suff, 1) && suff == 'q') //не нужен break
+				if(read(in, &suff, 1) && suff == 'q')
 					goto stop;
 				if(suff != 'w')
 					break;
@@ -270,7 +300,8 @@ int main(int argc, char *argv[]) {
 				write(STDOUT_FILENO, &suff, 1);
 				if(fd > 0) {
 					lseek(fd, 0L, SEEK_SET);
-					write(fd, p, strlen(p));
+					write(fd, p, staff.st_size);
+					ftruncate(fd, staff.st_size);
 				} else {
 					write(STDOUT_FILENO, " [введите имя файла]\n", 36); 
 					write(STDOUT_FILENO, profi, len_profi);
@@ -294,7 +325,9 @@ int main(int argc, char *argv[]) {
 						}
 					free(tmp);
 					}
-					write(fd, p, strlen(p));
+//					fstat(fdb, &staff);
+					write(fd, p, staff.st_size);
+					ftruncate(fd, staff.st_size);
 				}
 				write(STDOUT_FILENO, " [записано]\n", 20);
 				write(STDOUT_FILENO, wellcom, len_wellcom);
