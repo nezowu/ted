@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+#include <errno.h>
 
 void phelp(void);
 size_t size_page_current(off_t);
@@ -100,7 +101,7 @@ int main(int argc, char *argv[]) {
 	print_line(1, 1, p);
 	write(STDOUT_FILENO, profi, len_profi);
 
-	while(read(in, &suff, 1) && suff != '\004') { //нужна проверка read
+	while(read(in, &suff, 1) == 1) { //нужна проверка read
 		if(isdigit(suff) && !first ) {
 			if(suff == '0' && strlen(duff) < 1)
 				continue;
@@ -200,8 +201,7 @@ int main(int argc, char *argv[]) {
 			case 'a':
 				current_line++;
 				write(STDOUT_FILENO, &suff, 1);
-				write(STDOUT_FILENO, " (добавить)", 19);
-				write(STDOUT_FILENO, "\n", 1);
+				write(STDOUT_FILENO, " [добавить]\n", 20);
 				if(current_line > count_line) {
 					while(read(in, &suff, 1) && suff != '\004') {
 						if(!isprint((int)suff) && !isspace((int)suff))
@@ -230,8 +230,7 @@ int main(int argc, char *argv[]) {
 			case 'i':
 				if(suff == 'i')
 					write(STDOUT_FILENO, &suff, 1);
-				write(STDOUT_FILENO, " (вставить)", 19);
-				write(STDOUT_FILENO, "\n", 1);
+				write(STDOUT_FILENO, " [вставить]\n", 20);
 				ins = getline_p(current_line, p);
 				tmp = calloc(1, (size_t)sysconf(_SC_PAGESIZE));
 				memcpy(tmp, ins, strlen(ins));
@@ -259,6 +258,48 @@ int main(int argc, char *argv[]) {
 						end_p = d + 1;
 				}
 				break;
+			case 'q': //нужна проверка свопа и файла на время доступа своп < файл для выхода без подтверждения
+				write(STDOUT_FILENO, &suff, 1);
+				write(STDOUT_FILENO, "\n[выход без сохранения - q, сохранить - w]\n", 70);
+				write(STDOUT_FILENO, profi, len_profi);
+				if(read(in, &suff, 1) && suff == 'q') //не нужен break
+					goto stop;
+				if(suff != 'w')
+					break;
+			case 'w':
+				write(STDOUT_FILENO, &suff, 1);
+				if(fd > 0) {
+					lseek(fd, 0L, SEEK_SET);
+					write(fd, p, strlen(p));
+				} else {
+					write(STDOUT_FILENO, " [введите имя файла]\n", 36); 
+					write(STDOUT_FILENO, profi, len_profi);
+					while(fd <= 0) {
+						tmp = malloc(1024);
+						d = tmp;
+						while(read(in, &suff, 1) && suff != '\004') {
+							write(STDOUT_FILENO, &suff, 1);
+							memcpy(d++, &suff, 1);
+						}
+						if((fd = open(tmp, O_RDWR|O_CREAT|O_EXCL, 0664)) == -1) {
+							if(errno == EEXIST) {
+								write(STDERR_FILENO, "[файл с таким именем существует]\n", 59);
+								write(STDERR_FILENO, "[введите новое имя файла]\n", 46);
+								write(STDOUT_FILENO, profi, len_profi);
+							} else {
+								perror("\n");
+								write(STDERR_FILENO, "[не удалось записать файл]\n", 49);
+								write(STDOUT_FILENO, profi, len_profi);
+							}
+						}
+					free(tmp);
+					}
+					write(fd, p, strlen(p));
+				}
+				write(STDOUT_FILENO, " [записано]\n", 20);
+				write(STDOUT_FILENO, wellcom, len_wellcom);
+				write(STDOUT_FILENO, profi, len_profi);
+				break;
 			default:
 //				write(STDOUT_FILENO, "\033[u\033[0J", 7); //восстановим позицию курсора
 //				write(STDOUT_FILENO, wellcom, len_wellcom);
@@ -273,7 +314,11 @@ int main(int argc, char *argv[]) {
 		last = 0;
 	}
 
-	tcsetattr(in, TCSANOW, &saved_attr);
+	//удалить своп файл до метки stop
+stop:
+	close(fdb);
+	close(fd);
+	tcsetattr(in, TCSANOW, &saved_attr); //наверное нужно обернуть в функцию и добавить через atexit чтобы избавится от goto в switch
 	write(STDOUT_FILENO, "\n", 1);
 	exit(EXIT_SUCCESS);
 }
@@ -285,12 +330,13 @@ void phelp(void) {
 j - вывод следующей строки\n\
 k - вывод предыдущей строки\n\
 Space - вывод блока строк, по умолчанию 5\n\
-nSpace - установка размера блока (напр: --> 25Space)\n\
-A - добавление в конец файла с новой строки.\n\
+nSpace - установка размера блока [напр: --> 25Space]\n\
+a - добавление с новой строки.\n\
+A - добавление в конец файла с новой строки\n\
 i - вставка текста\nd - удалить текущую строку\n\
-Ctrl+d - закончить ввод текста.\n\
+Ctrl+D - закончить ввод текста.\n\
 c - замена строки.\n\
-w [filename] - сохранение документа\nq - выход с записью.\n\
+w - сохранение документа\nq - выход с записью.\n\
 q - выход с сохранением\nz - выход без сохранения.\n\
 m - справка");
 }

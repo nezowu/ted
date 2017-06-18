@@ -9,3 +9,5 @@ drug idi gulyaj.
 gutalin tam ili ne gutalin,
 a posylku ya vam ne otdam.
 
+table
+last
