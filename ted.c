@@ -79,6 +79,7 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
         }
 	get_count(&t);
+	printf("%zu %zu\n", t.count, t.len);
 
         write(STDOUT_FILENO, wellcom, len_wellcom);
         write(STDOUT_FILENO, profi, len_profi);
@@ -131,14 +132,6 @@ int main(int argc, char *argv[]) {
 			memset(duff, 0, 8);
                 }
                 switch(suff) {
-                        case 'm': //справка
-				if(sparta) {
-					write(STDOUT_FILENO, &suff, 1);
-					write(STDOUT_FILENO, "\n", 1);
-				}
-                                phelp();
-                                write(STDOUT_FILENO, profi, len_profi);
-                                break;
                         case 'p': //print
 				if(sparta) {
 					write(STDOUT_FILENO, &suff, 1);
@@ -148,7 +141,7 @@ int main(int argc, char *argv[]) {
 				if(sparta)
 					write(STDOUT_FILENO, profi, len_profi);
                                 break;
-			case 'n': //вывод номеров строк
+			case 'n': //нумерация строк
 				if(sparta) {
 					write(STDOUT_FILENO, &suff, 1);
 					write(STDOUT_FILENO, "\n", 1);
@@ -160,7 +153,7 @@ int main(int argc, char *argv[]) {
 				if(sparta)
 					write(STDOUT_FILENO, profi, len_profi);
 				break;
-			case 's': //строго, только текст
+			case 's': //спартанский интерфейс
 				if(sparta) {
 					write(STDOUT_FILENO, &suff, 1);
 					write(STDOUT_FILENO, "\n", 1);
@@ -172,6 +165,14 @@ int main(int argc, char *argv[]) {
 				if(sparta)
 					write(STDOUT_FILENO, profi, len_profi);
 				break;
+                        case 'm': //справка
+				if(sparta) {
+					write(STDOUT_FILENO, &suff, 1);
+					write(STDOUT_FILENO, "\n", 1);
+				}
+                                phelp();
+                                write(STDOUT_FILENO, profi, len_profi);
+                                break;
 		}
 		t.first = 0;
 		t.last = 0;
@@ -180,13 +181,15 @@ int main(int argc, char *argv[]) {
 	tcsetattr(f.in, TCSANOW, &saved_attr);
 	exit(EXIT_SUCCESS);
 }
+
 void get_count(Block *t) {
+	char *end = t->p + t->len;
 	if(t->len > 0) {
 		t->endp = t->p;
 		size_t leng = t->len;
 		for(t->count = 1; (t->endp = memchr(t->endp, '\n', leng)) != NULL; t->count++) {
-			leng = leng - (t->endp - t->p);
-			t->endp++;
+//			leng = strlen(++t->endp);
+			leng = (size_t)(end - ++t->endp);
 		}
 	}
 	t->endp = t->p + t->len;
@@ -261,6 +264,6 @@ c - замена строки\n\
 w - сохранение документа\n\
 q - выход\n\
 n - номера строк.\n\
-s - спартанский режим\n\
+s - спартанский интерфейс\n\
 m - справка");
 }
