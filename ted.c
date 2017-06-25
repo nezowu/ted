@@ -26,17 +26,16 @@ typedef struct file {
 	int in;
 } File;
 
-size_t SIZE;
-
-char *untoa(int, char *);
-char *getline_p(size_t line, char *);
-void get_count(Block*);
-size_t get_size(size_t);
-size_t print_line(Block*);
-void phelp(void);
+char *untoa(int, char *); //перовод чисел в строку
+char *getline_p(size_t line, char *); //получить указатель на строку под номером
+void get_count(Block*); //посчитать строки
+size_t get_size(size_t); //получить требуемый размер буфера с перекрытием в 1 страницу
+void print_line(Block*); //вывод строки на печать
+void phelp(void); //вывод справки
+void del_line(Block*); //удаление строки
+void ins_line(Block*, File*); //вставка строки
 
 int main(int argc, char *argv[]) {
-	SIZE = sysconf(_SC_PAGESIZE);
 	Block t = {NULL, 0, 0, 0, 1, NULL, 0, 0, 1};
 	File f;
 	char suff;
@@ -46,7 +45,8 @@ int main(int argc, char *argv[]) {
         const char *profi = "\033[0;33m--> \033[0m";
         int len_profi = 15;
         int len_wellcom = 49;
-	size_t sparta = 1;
+	size_t sparta = 1, range = 5;
+	size_t tmp_size;
 
         struct stat staff;
         struct termios saved_attr;
@@ -79,12 +79,10 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
         }
 	get_count(&t);
-	printf("%zu %zu\n", t.count, t.len);
-
         write(STDOUT_FILENO, wellcom, len_wellcom);
         write(STDOUT_FILENO, profi, len_profi);
         write(STDOUT_FILENO, "\n", 1);
-    	t.current = print_line(&t);
+    	print_line(&t);
         write(STDOUT_FILENO, profi, len_profi);
 
         while(read(f.in, &suff, 1) == 1 && suff != '\004') {
@@ -129,6 +127,8 @@ int main(int argc, char *argv[]) {
                         t.last = atoi(duff);
                         if(t.last > t.count)
                                 t.last = t.count;
+			if(t.last < t.first) //поставил
+				t.last = t.first;
 			memset(duff, 0, 8);
                 }
                 switch(suff) {
@@ -137,10 +137,94 @@ int main(int argc, char *argv[]) {
 					write(STDOUT_FILENO, &suff, 1);
 					write(STDOUT_FILENO, "\n", 1);
 				}
-				t.current = print_line(&t);
+				print_line(&t);
 				if(sparta)
 					write(STDOUT_FILENO, profi, len_profi);
                                 break;
+			case 'j': //вниз на одну строку
+				if(sparta) {
+					write(STDOUT_FILENO, &suff, 1);
+					write(STDOUT_FILENO, "\n", 1);
+				}
+				if(t.current < t.count)
+					t.current++;
+                                print_line(&t);
+				if(sparta)
+					write(STDOUT_FILENO, profi, len_profi);
+                                break;
+			case 'k': //вверх на одну строку
+				if(sparta) {
+					write(STDOUT_FILENO, &suff, 1);
+					write(STDOUT_FILENO, "\n", 1);
+				}
+				if(t.current > 1)
+					t.current--;
+                                print_line(&t);
+				if(sparta)
+					write(STDOUT_FILENO, profi, len_profi);
+                                break;
+                        case '\040': // клавиша Space
+				if(sparta) {
+					write(STDOUT_FILENO, "Space", 5); 
+					write(STDOUT_FILENO, "\n", 1); 
+				}
+                                if(t.first > 0)
+                                       range = t.first;
+                                if(t.current < t.count)
+                                        t.current++;
+				t.first = t.current;
+				t.last = t.current + range - 1;
+				if(t.last > t.count)
+					t.last = t.count;
+                                print_line(&t);
+				if(sparta)
+					write(STDOUT_FILENO, profi, len_profi);
+                                break;
+			case 'D': //групповушка
+				if(t.last) {
+					t.current = t.first;
+					while(t.first <= t.last) {
+						del_line(&t);
+						get_count(&t);
+						t.last--;
+					}
+				}
+				else if(t.first)
+					t.current = t.first;
+                        case 'd':
+				write(STDOUT_FILENO, &suff, 1);
+				write(STDOUT_FILENO, " [удалить]\n", 18);
+				if(!t.last) {
+					del_line(&t);
+					get_count(&t);
+				}
+				tmp_size = get_size(t.len);
+				if(t.size != tmp_size) {
+					t.size = tmp_size;
+					t.p = realloc(t.p, tmp_size);
+				}
+                                write(STDOUT_FILENO, profi, len_profi);
+                                break;
+			case 'A':
+				t.current = t.count;
+			case 'a':
+				t.current++;
+			case 'I':
+				if(suff == 'I')
+					t.current = t.first;
+			case 'i':
+				write(STDOUT_FILENO, &suff, 1);
+				write(STDOUT_FILENO, "\n\033[0;36m", 8);
+				ins_line(&t, &f);
+				get_count(&t);
+				tmp_size = get_size(t.len);
+				if(t.size != tmp_size) {
+					t.size = tmp_size;
+					t.p = realloc(t.p, tmp_size);
+				}
+				write(STDOUT_FILENO, "\033[0m", 4);
+				write(STDOUT_FILENO, profi, len_profi);
+				break;
 			case 'n': //нумерация строк
 				if(sparta) {
 					write(STDOUT_FILENO, &suff, 1);
@@ -187,7 +271,7 @@ void get_count(Block *t) {
 	if(t->len > 0) {
 		t->endp = t->p;
 		size_t leng = t->len;
-		for(t->count = 1; (t->endp = memchr(t->endp, '\n', leng)) != NULL; t->count++) {
+		for(t->count = 0; (t->endp = memchr(t->endp, '\n', leng)) != NULL; t->count++) {
 //			leng = strlen(++t->endp);
 			leng = (size_t)(end - ++t->endp);
 		}
@@ -196,7 +280,8 @@ void get_count(Block *t) {
 }
 
 size_t get_size(size_t len) {
-	return (len + SIZE) / SIZE * SIZE + SIZE;
+	size_t size = sysconf(_SC_PAGESIZE);
+	return (len + size) / size * size + size;
 }
 
 char *getline_p(size_t line, char *p) {
@@ -215,35 +300,105 @@ char *untoa(int digit, char *buff) {
 	return buff;
 }
 
-size_t print_line(Block *t) {
+void print_line(Block *t) {
 	if(t->len == 0)
-		return 0;
-	int i = 1;
-	if(t->first == 0)
-		i = t->current;
-	if(t->first > i)
-		i = t->first;
-        if(i > t->last)
-                t->last = i;
-        char *buff = calloc(1, 8);
-        char *d;
-        char *run = getline_p(i, t->p);
-        for(; i <= t->last; i++) {
-		if(t->num) {
-			d = untoa(i, buff);
-			write(STDOUT_FILENO, "\033[1;33m", 7);
-			write(STDOUT_FILENO, d, strlen(d));
-                	write(STDOUT_FILENO, "\033[0m ", 5);
+		t->current = 0;
+	else {
+		int i = 1;
+		size_t arg = t->last;
+		if(t->first == 0)
+			i = t->current;
+		if(t->first > i)
+			i = t->first;
+		if(i > arg)
+			arg = i;
+		char *buff = calloc(1, 8);
+		char *d;
+		char *run = getline_p(i, t->p);
+		for(; i <= arg; i++) {
+			if(t->num) {
+				d = untoa(i, buff);
+				write(STDOUT_FILENO, "\033[1;33m", 7);
+				write(STDOUT_FILENO, d, strlen(d));
+				write(STDOUT_FILENO, "\033[0m ", 5);
+			}
+			do {
+				if(run[0] == '\n')
+					break;
+				write(STDOUT_FILENO, run++, 1);
+			} while(run[0] != '\n' && run[0] != '\0');
+			write(STDOUT_FILENO, run++, 1);
 		}
-                do {
-                        if(run[0] == '\n')
-                                break;
-                        write(STDOUT_FILENO, run++, 1);
-                } while(run[0] != '\n' && run[0] != '\0');
-                write(STDOUT_FILENO, run++, 1);
-        }
-        free(buff);
-        return t->last;
+		free(buff);
+		t->current = arg;
+	}
+}
+
+void del_line(Block *t) {
+	char *tmp = calloc(1, t->size);
+	char *sin, *din;
+	size_t size;
+	if(t->count > 1) {
+		sin = getline_p(t->current, t->p);
+		din = getline_p(t->current + 1, t->p);
+		size = (size_t)(t->endp - din);
+		memcpy(tmp, din, size);
+		memcpy(sin, tmp, size);
+		size = (size_t)(din - sin);
+		t->len = t->len - size;
+		memset(t->p + t->len, 0, size);
+		if(t->current == t->count)
+			t->current--;
+	
+	}
+	else if(t->count == 1 && t->len != 1) {
+		sin = getline_p(1, t->p);
+		t->len = strlen(sin);
+		memset(sin, 0, t->len);
+		t->current = 1;
+	}
+	else {
+		memset(t->p, 0, t->len);
+		t->len = 0;
+		t->current = 0;
+		t->count = 0;
+	}
+	free(tmp);
+}
+
+void ins_line(Block *t, File *f) {
+	char suff;
+	char *ins;
+	if(t->current <= t->count) {
+		char *tmp = calloc(1, t->size);
+		ins = getline_p(t->current, t->p); //вставляем в текущую позицию 
+		size_t size = t->endp - ins;
+		memcpy(tmp, ins, size);
+		while(read(f->in, &suff, 1) && suff != '\004') {
+			if(!isprint((int)suff) && !isspace((int)suff))
+				continue;
+			write(STDOUT_FILENO, &suff, 1); 
+			memcpy(ins++, &suff, 1); 
+		}
+		memcpy(ins++, "\n", 1); 
+		memcpy(ins, tmp, size);
+		free(tmp);
+		if(t->current == t->count)
+			t->len = strlen(t->p);
+		else
+			t->len+=size;
+	}
+	else if(t->current > t->count) {
+		ins = t->endp;
+		while(read(f->in, &suff, 1) && suff != '\004') {
+			if(!isprint((int)suff) && !isspace((int)suff))
+				continue;
+			write(STDOUT_FILENO, &suff, 1); 
+			memcpy(ins++, &suff, 1); 
+		}
+		memcpy(ins++, "\n", 1); 
+		t->len = t->len + (ins - t->endp);
+	}
 }
 
 void phelp(void) {
@@ -253,17 +408,20 @@ void phelp(void) {
 j - вывод следующей строки\n\
 k - вывод предыдущей строки\n\
 Space - вывод блока строк, по умолчанию 5\n\
- <размер>Space - установка размера блока\n\
+ <n>Space - установка размера блока\n\
 a - добавление с новой строки\n\
 A - добавление в конец файла\n\
 i - вставка текста\n\
 d - удалить текущую строку\n\
- <интервал>D - групповое удаление строк\n\
+<n>D - адресное или групповое удаление строк\n\
+ $D - удалить последнюю строку\n\
+ 1-$D - удалить все строки\n\
 Ctrl+d - закончить ввод текста\n\
 c - замена строки\n\
 w - сохранение документа\n\
 q - выход\n\
 n - номера строк.\n\
 s - спартанский интерфейс\n\
+<-- отмена\n\
 m - справка");
 }
