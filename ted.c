@@ -86,6 +86,13 @@ int main(int argc, char *argv[]) {
         write(STDOUT_FILENO, profi, len_profi);
 
         while(read(f.in, &suff, 1) == 1 && suff != '\004') {
+		if(suff == '\177') {
+			write(STDOUT_FILENO, "\033[1G\033[2K", 8);
+			write(STDOUT_FILENO, profi, len_profi);
+			t.first = 0;
+			t.last = 0;
+			continue;
+		}
                 if(isdigit(suff) && !t.first ) { 
                         if(suff == '0' && strlen(duff) < 1)
                                 continue;
@@ -257,6 +264,8 @@ int main(int argc, char *argv[]) {
                                 phelp();
                                 write(STDOUT_FILENO, profi, len_profi);
                                 break;
+			default:
+				break;
 		}
 		t.first = 0;
 		t.last = 0;
@@ -367,26 +376,29 @@ void del_line(Block *t) {
 }
 
 void ins_line(Block *t, File *f) {
+	size_t count = 0;
 	char *buff = calloc(1, 8);
 	char guff;
 	char *ins;
+	char *temp;
 	if(t->current <= t->count) {
 		int i;
 		char *line;
 		char *tmp = calloc(1, t->size);
 		ins = getline_p(t->current, t->p); //вставляем в текущую позицию 
-		char *temp = ins;
+		temp = ins;
 		size_t size = t->endp - ins;
 		memcpy(tmp, ins, size);
-		while(read(f->in, &guff, 1) && guff != '\004') {
-			if(guff == '\n')
-				t->current++;
+		while(read(f->in, &guff, 1) && guff != '\004') { //ввести защиту от переполнения
+			if(guff == '\n') {
+				count++;
+			}
 			if((int)guff == '\177') {
 				if(ins > temp) {
 					ins--;
 					if(*ins == '\n') {
 						memset(ins, 0, 1);
-						t->current--;
+						count--;
 						if(*(ins - 1) != '\n') {
 							for(i = 0; ins - i >= temp && *(ins - i) != '\n';) {
 								i++;
@@ -413,14 +425,11 @@ void ins_line(Block *t, File *f) {
 			write(STDOUT_FILENO, &guff, 1); 
 			memcpy(ins++, &guff, 1); 
 		}
-		if(ins > temp)
+		if(ins > temp) {
 			memcpy(ins++, "\n", 1);
+		}
 		memcpy(ins, tmp, size);
 		free(tmp);
-		if(t->current == t->count)
-			t->len = strlen(t->p);
-		else
-			t->len+=size;
 	}
 	else if(t->current > t->count) {
 		ins = t->endp;
@@ -431,9 +440,10 @@ void ins_line(Block *t, File *f) {
 			memcpy(ins++, &guff, 1); 
 		}
 		memcpy(ins++, "\n", 1); 
-		t->len = t->len + (ins - t->endp);
 	}
 	free(buff);
+	t->current+=count;
+	t->len+=strlen(t->endp);
 }
 
 void phelp(void) {
