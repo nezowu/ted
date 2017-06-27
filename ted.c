@@ -383,6 +383,7 @@ void ins_line(Block *t, File *f) {
 	char *temp;
 	if(t->current <= t->count) {
 		int i;
+		int j;
 		char *line;
 		char *tmp = calloc(1, t->size);
 		ins = getline_p(t->current, t->p); //вставляем в текущую позицию 
@@ -400,9 +401,12 @@ void ins_line(Block *t, File *f) {
 						memset(ins, 0, 1);
 						count--;
 						if(*(ins - 1) != '\n') {
-							for(i = 0; ins - i >= temp && *(ins - i) != '\n';) {
+							for(i = 0, j = 0; ins - i >= temp && *(ins - i) != '\n';) {
+								if(*(ins - i) == -48 || *(ins - i) == -47)
+									j++;
 								i++;
 							}
+							i -= j;
 							line = untoa(i - 1, buff);
 							write(STDOUT_FILENO, "\033[A", 3);
 							write(STDOUT_FILENO, "\033[", 2);
@@ -417,10 +421,17 @@ void ins_line(Block *t, File *f) {
 					else {
 						memset(ins, 0, 1);
 						write(STDOUT_FILENO, "\033[D\033[X", 6);
+						if(*(ins - 1) == -48 || *(ins - 1) == -47) {
+							ins--;
+							memset(ins, 0, 1);
+						}
+
 					}
 				}
 			}
-			if(!isprint((int)guff) && !isspace((int)guff))
+//			if(!isprint((int)guff) && !isspace((int)guff))
+//				continue;
+			if(guff == '\177')
 				continue;
 			write(STDOUT_FILENO, &guff, 1); 
 			memcpy(ins++, &guff, 1); 
@@ -434,7 +445,9 @@ void ins_line(Block *t, File *f) {
 	else if(t->current > t->count) {
 		ins = t->endp;
 		while(read(f->in, &guff, 1) && guff != '\004') {
-			if(!isprint((int)guff) && !isspace((int)guff))
+//			if(!isprint((int)guff) && !isspace((int)guff))
+//				continue;
+			if(guff == '\177')
 				continue;
 			write(STDOUT_FILENO, &guff, 1); 
 			memcpy(ins++, &guff, 1); 
