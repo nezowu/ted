@@ -7,6 +7,7 @@
 #include <termios.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdio_ext.h>
 
 typedef struct block {
 	char *p;
@@ -187,6 +188,33 @@ int main(int argc, char *argv[]) {
 				if(sparta)
 					write(STDOUT_FILENO, profi, len_profi);
                                 break;
+                        case 'c':
+				if(t.first)
+					t.current = t.first;
+				else
+					t.first = t.current;
+				if(sparta) {
+					write(STDOUT_FILENO, &suff, 1);
+					write(STDOUT_FILENO, " [заменить]\033[0;36m\n", 27);
+				}
+				if(!t.last) {
+					del_line(&t);
+					get_count(&t);
+				}
+				t.current = t.first;
+				ins_line(&t, &f);
+				get_count(&t);
+				tmp_size = get_size(t.len);
+				if(t.size != tmp_size) {
+					t.size = tmp_size;
+					t.p = realloc(t.p, tmp_size);
+				}
+				if(sparta) {
+					write(STDOUT_FILENO, "\n", 1);
+					write(STDOUT_FILENO, profi, len_profi);
+				}
+                                break;
+
 			case 'D': //групповушка
 				if(t.last) {
 					t.current = t.first;
@@ -199,8 +227,10 @@ int main(int argc, char *argv[]) {
 				else if(t.first)
 					t.current = t.first;
                         case 'd':
-				write(STDOUT_FILENO, &suff, 1);
-				write(STDOUT_FILENO, " [удалить]\n", 18);
+				if(sparta) {
+					write(STDOUT_FILENO, &suff, 1);
+					write(STDOUT_FILENO, " [удалить]\n", 18);
+				}
 				if(!t.last) {
 					del_line(&t);
 					get_count(&t);
@@ -210,7 +240,8 @@ int main(int argc, char *argv[]) {
 					t.size = tmp_size;
 					t.p = realloc(t.p, tmp_size);
 				}
-                                write(STDOUT_FILENO, profi, len_profi);
+				if(sparta)
+					write(STDOUT_FILENO, profi, len_profi);
                                 break;
 			case 'A':
 				t.current = t.count;
@@ -220,7 +251,13 @@ int main(int argc, char *argv[]) {
 				if(suff == 'I')
 					t.current = t.first;
 			case 'i':
-				write(STDOUT_FILENO, &suff, 1);
+				if(sparta) {
+					write(STDOUT_FILENO, &suff, 1);
+					if(suff == 'a' || suff == 'A')
+						write(STDOUT_FILENO, " [добавить]", 19);
+					else
+						write(STDOUT_FILENO, " [вставить]", 19);
+				}
 				write(STDOUT_FILENO, "\n\033[0;36m", 8);
 				ins_line(&t, &f);
 				get_count(&t);
@@ -229,8 +266,9 @@ int main(int argc, char *argv[]) {
 					t.size = tmp_size;
 					t.p = realloc(t.p, tmp_size);
 				}
-				write(STDOUT_FILENO, "\033[0m", 4);
-				write(STDOUT_FILENO, profi, len_profi);
+				write(STDOUT_FILENO, "\033[0m\n", 5);
+				if(sparta)
+					write(STDOUT_FILENO, profi, len_profi);
 				break;
 			case 'n': //нумерация строк
 				if(sparta) {
@@ -379,84 +417,81 @@ void ins_line(Block *t, File *f) {
 	size_t count = 0;
 	char *buff = calloc(1, 8);
 	char guff;
-	char *ins;
-	char *temp;
+	char *ins, *line, *temp;
+	int i, j;
+	char *tmp = calloc(1, t->size);
 	if(t->current <= t->count) {
-		int i;
-		int j;
-		char *line;
-		char *tmp = calloc(1, t->size);
 		ins = getline_p(t->current, t->p); //вставляем в текущую позицию 
-		temp = ins;
-		size_t size = t->endp - ins;
-		memcpy(tmp, ins, size);
-		while(read(f->in, &guff, 1) && guff != '\004') { //ввести защиту от переполнения
-			if(guff == '\n') {
-				count++;
+	}
+	else {
+		ins = t->endp;
+	}
+	temp = ins;
+	size_t size = (size_t)(t->endp - ins);
+	memcpy(tmp, ins, size);
+	while(read(f->in, &guff, 1) && guff != '\004') { //ввести защиту от переполнения
+		if(guff == 27) {
+			read(f->in, &guff, 1);
+			if(guff == 91) {
+				read(f->in, &guff, 1);
+				read(f->in, &guff, 1);
 			}
-			if((int)guff == '\177') {
-				if(ins > temp) {
-					ins--;
-					if(*ins == '\n') {
-						memset(ins, 0, 1);
-						count--;
-						if(*(ins - 1) != '\n') {
-							for(i = 0, j = 0; ins - i >= temp && *(ins - i) != '\n';) {
-								if(*(ins - i) == -48 || *(ins - i) == -47)
-									j++;
-								i++;
-							}
-							i -= j;
-							line = untoa(i - 1, buff);
-							write(STDOUT_FILENO, "\033[A", 3);
-							write(STDOUT_FILENO, "\033[", 2);
-							write(STDOUT_FILENO, line, strlen(line));
-							write(STDOUT_FILENO, "C", 1);
-							memset(buff, 0, 8);
-
+			read(f->in, &guff, 1);
+			continue;
+		}
+		if(guff == '\n') {
+			count++;
+		}
+		if(guff == '\177') {
+			if(ins > temp) {
+				ins--;
+				if(*ins == '\n') {
+					memset(ins, 0, 1);
+					count--;
+					if(*(ins - 1) != '\n') {
+						for(i = 0, j = 0; ins - i >= temp && *(ins - i) != '\n';) {
+							if((*(ins - i) & 0xF0) == 208) //находим первый байт кирилицы
+								j++;
+							i++;
 						}
-						else
-							write(STDOUT_FILENO, "\033[A", 3);
-					}
-					else {
-						memset(ins, 0, 1);
-						write(STDOUT_FILENO, "\033[D\033[X", 6);
-						if(*(ins - 1) == -48 || *(ins - 1) == -47) {
-							ins--;
-							memset(ins, 0, 1);
-						}
+						i -= j;
+						line = untoa(i - 1, buff);
+						write(STDOUT_FILENO, "\033[A", 3);
+						write(STDOUT_FILENO, "\033[", 2);
+						write(STDOUT_FILENO, line, strlen(line));
+						write(STDOUT_FILENO, "C", 1);
+						memset(buff, 0, 8);
 
 					}
+					else
+						write(STDOUT_FILENO, "\033[A", 3);
+				}
+				else {
+					memset(ins, 0, 1);
+					write(STDOUT_FILENO, "\033[D\033[X", 6);
+					if((*(ins - 1) & 0xF0) == 208) {
+						ins--;
+						memset(ins, 0, 1);
+					}
+
 				}
 			}
-//			if(!isprint((int)guff) && !isspace((int)guff))
-//				continue;
-			if(guff == '\177')
-				continue;
-			write(STDOUT_FILENO, &guff, 1); 
-			memcpy(ins++, &guff, 1); 
 		}
-		if(ins > temp) {
-			memcpy(ins++, "\n", 1);
-		}
-		memcpy(ins, tmp, size);
-		free(tmp);
+		if(guff == '\177')
+			continue;
+		write(STDOUT_FILENO, &guff, 1); 
+		memcpy(ins++, &guff, 1); 
 	}
-	else if(t->current > t->count) {
-		ins = t->endp;
-		while(read(f->in, &guff, 1) && guff != '\004') {
-//			if(!isprint((int)guff) && !isspace((int)guff))
-//				continue;
-			if(guff == '\177')
-				continue;
-			write(STDOUT_FILENO, &guff, 1); 
-			memcpy(ins++, &guff, 1); 
-		}
-		memcpy(ins++, "\n", 1); 
+	if(ins > temp) {
+		memcpy(ins++, "\n", 1);
 	}
+	memcpy(ins, tmp, size);
+	free(tmp);
 	free(buff);
 	t->current+=count;
 	t->len+=strlen(t->endp);
+	if(t->len > 0 && t->count == 0)
+		t->current = 1;
 }
 
 void phelp(void) {
