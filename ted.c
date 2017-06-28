@@ -8,6 +8,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdio_ext.h>
+#include <errno.h>
 
 typedef struct block {
 	char *p;
@@ -41,6 +42,7 @@ int main(int argc, char *argv[]) {
 	File f;
 	char suff;
 	char duff[8] = {0};
+	char *tmp, *d;
 
         const char *wellcom = "Введите команду[m - справка]";
         const char *profi = "\033[0;33m--> \033[0m";
@@ -86,7 +88,7 @@ int main(int argc, char *argv[]) {
     	print_line(&t);
         write(STDOUT_FILENO, profi, len_profi);
 
-        while(read(f.in, &suff, 1) == 1 && suff != '\004') {
+        while(read(f.in, &suff, 1) == 1) {
 		if(suff == '\177') {
 			write(STDOUT_FILENO, "\033[1G\033[2K", 8);
 			write(STDOUT_FILENO, profi, len_profi);
@@ -229,7 +231,7 @@ int main(int argc, char *argv[]) {
                         case 'd':
 				if(sparta) {
 					write(STDOUT_FILENO, &suff, 1);
-					write(STDOUT_FILENO, " [удалить]\n", 18);
+					write(STDOUT_FILENO, " [удалино]\n", 18);
 				}
 				if(!t.last) {
 					del_line(&t);
@@ -270,6 +272,63 @@ int main(int argc, char *argv[]) {
 				if(sparta)
 					write(STDOUT_FILENO, profi, len_profi);
 				break;
+			case 'q':
+				if(sparta)
+					write(STDOUT_FILENO, &suff, 1);
+                                write(STDOUT_FILENO, " [выход без сохранения - q, сохранить - w]\n", 70);
+                                write(STDOUT_FILENO, profi, len_profi);
+                                if(read(f.in, &suff, 1) && suff == 'q')
+                                        goto stop;
+                                if(suff != 'w')
+                                        break;
+				t.last = 10;
+                        case 'w':
+				if(sparta)
+					write(STDOUT_FILENO, &suff, 1);
+                                if(f.d > 0) {
+                                        lseek(f.d, 0L, SEEK_SET);
+                                        write(f.d, t.p, t.len);
+                                        ftruncate(f.d, t.len);
+					write(STDOUT_FILENO, " [записано]", 19);
+                                }
+				else {
+                                        write(STDOUT_FILENO, " [введите имя файла]\n", 36);
+                                        write(STDOUT_FILENO, profi, len_profi);
+                                        tmp = malloc(128);
+                                        while(f.d <= 0) {
+                                        	d = tmp;
+                                                while(read(f.in, &suff, 1) && suff != '\004') {
+							if(!isprint(suff))
+								continue;
+                                                        write(STDOUT_FILENO, &suff, 1);
+                                                        memcpy(d++, &suff, 1);
+                                                }
+                                                if((f.d = open(tmp, O_RDWR|O_CREAT|O_EXCL, 0664)) == -1) {
+                                                        if(errno == EEXIST) {
+                                                                write(STDERR_FILENO, " [файл с таким именем существует]\n", 60);
+								write(STDOUT_FILENO, profi, len_profi);
+                                                                write(STDERR_FILENO, "[введите новое имя файла]\n", 46);
+                                                                write(STDOUT_FILENO, profi, len_profi);
+								continue;
+                                                        } else {
+                                                                perror("\n");
+                                                                write(STDERR_FILENO, "[не удалось записать файл]\n", 49);
+                                                                write(STDOUT_FILENO, profi, len_profi);
+								break;
+                                                        }
+                                                }
+						memset(tmp, 0, strlen(tmp));
+                                        }
+                                        write(f.d, t.p, t.len);
+					write(STDOUT_FILENO, " [записано] ", 20);
+					write(STDOUT_FILENO, tmp, strlen(tmp));
+                                        free(tmp);
+				}
+				if(t.first == 0 && t.last == 10)
+					goto stop;
+				write(STDOUT_FILENO, "\n", 1);
+				write(STDOUT_FILENO, profi, len_profi);
+				break;
 			case 'n': //нумерация строк
 				if(sparta) {
 					write(STDOUT_FILENO, &suff, 1);
@@ -308,7 +367,8 @@ int main(int argc, char *argv[]) {
 		t.first = 0;
 		t.last = 0;
 	}
-
+stop:
+	write(STDOUT_FILENO, "\n", 1);
 	tcsetattr(f.in, TCSANOW, &saved_attr);
 	exit(EXIT_SUCCESS);
 }
@@ -505,12 +565,12 @@ Space - вывод блока строк, по умолчанию 5\n\
 a - добавление с новой строки\n\
 A - добавление в конец файла\n\
 i - вставка текста\n\
+c - замена строки\n\
 d - удалить текущую строку\n\
 <n>D - адресное или групповое удаление строк\n\
  $D - удалить последнюю строку\n\
  1-$D - удалить все строки\n\
 Ctrl+d - закончить ввод текста\n\
-c - замена строки\n\
 w - сохранение документа\n\
 q - выход\n\
 n - номера строк.\n\
