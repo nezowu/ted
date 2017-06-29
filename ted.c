@@ -240,10 +240,15 @@ int main(int argc, char *argv[]) {
 					write(STDOUT_FILENO, &suff, 1);
                                 write(STDOUT_FILENO, " [выход без сохранения - q, сохранить - w]\n", 70);
                                 write(STDOUT_FILENO, profi, len_profi);
-                                if(read(f.in, &suff, 1) && suff == 'q')
+				read(f.in, &suff, 1);
+                                if(suff == 'q') {
+					write(STDOUT_FILENO, &suff, 1);
                                         goto stop;
-                                if(suff != 'w')
+				}
+                                if(suff != 'w') {
+					write(STDOUT_FILENO, &suff, 1);
                                         break;
+				}
 				t.last = 10;
                         case 'w':
 				if(sparta)
@@ -275,15 +280,15 @@ int main(int argc, char *argv[]) {
 								continue;
                                                         } else {
                                                                 perror("\n");
-                                                                write(STDERR_FILENO, "[не удалось записать файл]\n", 49);
-                                                                write(STDOUT_FILENO, profi, len_profi);
+                                                                write(STDERR_FILENO, "[не удалось записать файл]", 49);
 								break;
                                                         }
                                                 }
 						memset(tmp, 0, strlen(tmp));
                                         }
                                         write(f.d, t.p, t.len);
-					write(STDOUT_FILENO, " [записано] ", 20);
+					if(f.d > 0)
+						write(STDOUT_FILENO, " [записано] ", 20);
 					write(STDOUT_FILENO, tmp, strlen(tmp));
                                         free(tmp);
 				}
