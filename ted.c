@@ -57,6 +57,7 @@ int main(int argc, char *argv[]) {
 			write(STDOUT_FILENO, profi, len_profi);
 			t.first = 0;
 			t.last = 0;
+			memset(duff, 0, 8);
 			continue;
 		}
                 if(isdigit(suff) && !t.first ) { 
@@ -69,7 +70,7 @@ int main(int argc, char *argv[]) {
                 }
                 if(strlen(duff) > 0 && !t.first) {
                         t.first = atoi(duff);
-                        duff[0] = 0;
+			memset(duff, 0, 8);
                         if(t.first > t.count)
                                 t.first = t.count;
                 }
@@ -154,6 +155,11 @@ int main(int argc, char *argv[]) {
 					write(STDOUT_FILENO, profi, len_profi);
                                 break;
                         case 'c':
+				if(t.last) {
+					write(STDOUT_FILENO, "\n", 1);
+					write(STDOUT_FILENO, profi, len_profi);
+					break;
+				}
 				if(t.first)
 					t.current = t.first;
 				else
@@ -162,10 +168,8 @@ int main(int argc, char *argv[]) {
 					write(STDOUT_FILENO, &suff, 1);
 					write(STDOUT_FILENO, " [заменить]\033[0;36m\n", 27);
 				}
-				if(!t.last) {
-					del_line(&t);
-					get_count(&t);
-				}
+				del_line(&t);
+				get_count(&t);
 				t.current = t.first;
 				ins_line(&t, &f);
 				get_count(&t);
@@ -179,7 +183,6 @@ int main(int argc, char *argv[]) {
 					write(STDOUT_FILENO, profi, len_profi);
 				}
                                 break;
-
 			case 'D': //групповушка
 				if(t.last) {
 					t.current = t.first;
@@ -192,6 +195,11 @@ int main(int argc, char *argv[]) {
 				else if(t.first)
 					t.current = t.first;
                         case 'd':
+				if(suff == 'd' && t.first) {
+					write(STDOUT_FILENO, "\n", 1);
+					write(STDOUT_FILENO, profi, len_profi);
+					break;
+				}
 				if(sparta) {
 					write(STDOUT_FILENO, &suff, 1);
 					write(STDOUT_FILENO, " [удалино]\n", 18);
@@ -209,13 +217,31 @@ int main(int argc, char *argv[]) {
 					write(STDOUT_FILENO, profi, len_profi);
                                 break;
 			case 'A':
+				if(t.first) {
+					write(STDOUT_FILENO, "\n", 1);
+					write(STDOUT_FILENO, profi, len_profi);
+					break;
+				}
 				t.current = t.count;
 			case 'a':
-				t.current++;
-			case 'I':
-				if(suff == 'I')
+				if(t.last) {
+					write(STDOUT_FILENO, "\n", 1);
+					write(STDOUT_FILENO, profi, len_profi);
+					break;
+				}
+				if(t.first) {
 					t.current = t.first;
+					t.first = 0;
+				}
+				t.current++;
 			case 'i':
+				if(t.last) {
+					write(STDOUT_FILENO, "\n", 1);
+					write(STDOUT_FILENO, profi, len_profi);
+					break;
+				}				
+				if(t.first)
+					t.current = t.first;
 				if(sparta) {
 					write(STDOUT_FILENO, &suff, 1);
 					if(suff == 'a' || suff == 'A')
@@ -334,6 +360,7 @@ int main(int argc, char *argv[]) {
 		}
 		t.first = 0;
 		t.last = 0;
+		memset(duff, 0, 8);
 	}
 stop:
 	write(STDOUT_FILENO, "\n", 1);
