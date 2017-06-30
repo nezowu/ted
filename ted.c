@@ -360,7 +360,7 @@ int main(int argc, char *argv[]) {
 		}
 		t.first = 0;
 		t.last = 0;
-		memset(duff, 0, 8);
+//		memset(duff, 0, 8);
 	}
 stop:
 	write(STDOUT_FILENO, "\n", 1);
