@@ -29,14 +29,14 @@ int main(int argc, char *argv[]) {
         if(argc == 1) {
 		t.len = 0;
 		t.size = get_size(t.len);
-		t.p = calloc(1, t.size);
+		t.p = calloc(t.size, 1);
         }
 	else if(argc == 2){
                 f.d = open(argv[1], O_RDWR|O_CREAT, 0664);
                 stat(argv[1], &staff);
 		t.len = staff.st_size;
 		t.size = get_size(t.len);
-		t.p = calloc(1, t.size);
+		t.p = calloc(t.size, 1);
 		read(f.d, t.p, t.len);
 		
         }
@@ -186,6 +186,7 @@ int main(int argc, char *argv[]) {
 			case 'D': //групповушка
 				if(t.last) {
 					t.current = t.first;
+					t.last--;
 					while(t.first <= t.last) {
 						del_line(&t);
 						get_count(&t);
@@ -414,7 +415,7 @@ void print_line(Block *t) {
                         i = t->first;
                 if(i > arg)
                         arg = i;
-                char *buff = calloc(1, 8);
+                char *buff = calloc(8, 1);
                 char *d;
                 char *run = getline_p(i, t->p);
                 for(; i <= arg; i++) {
@@ -437,7 +438,7 @@ void print_line(Block *t) {
 }
 
 void del_line(Block *t) {
-        char *tmp = calloc(1, t->size);
+        char *tmp = calloc(t->size, 1);
         char *sin, *din;
         size_t size;
         if(t->count > 1) {
@@ -470,11 +471,11 @@ void del_line(Block *t) {
 
 void ins_line(Block *t, File *f) {
 	size_t count = 0;
-	char *buff = calloc(1, 8);
+	char *buff = calloc(8, 1);
 	char guff;
 	char *ins, *line, *temp;
 	int i, j;
-	char *tmp = calloc(1, t->size);
+	char *tmp = calloc(t->size, 1);
 	if(t->current <= t->count) {
 		ins = getline_p(t->current, t->p); //вставляем в текущую позицию
 	}
