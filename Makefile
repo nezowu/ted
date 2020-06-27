@@ -16,4 +16,4 @@ ted.1.gz : $(P).1
 
 uninstall :
 	rm /usr/local/bin/$(P)
-	rm /usr/shar/man/man1/ted.1.gz
+	rm /usr/share/man/man1/ted.1.gz
