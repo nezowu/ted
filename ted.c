@@ -307,7 +307,7 @@ int main(int argc, char *argv[]) {
 								continue;
                                                         } else {
                                                                 perror("\n");
-                                                                write(STDERR_FILENO, "[не удалось записать файл]", 49);
+                                                                write(STDERR_FILENO, "[не удалось записать файл]", 48);
 								break;
                                                         }
                                                 }
